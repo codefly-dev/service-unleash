@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Service.Name.DNSCase }}"
+  namespace: "{{ .Namespace }}"
+  labels:
+    app.kubernetes.io/name: "{{ .Service.Name.DNSCase }}"
+    app.kubernetes.io/component: control
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "{{ .Service.Name.DNSCase }}"
+      app.kubernetes.io/component: control
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "{{ .Service.Name.DNSCase }}"
+        app.kubernetes.io/component: control
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: "{{ .Deployment.Parameters.ServerImage }}"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: admin
+              containerPort: 4242
+          env:
+            - name: DATABASE_HOST
+              value: "{{ .Service.Name.DNSCase }}-postgres"
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: DATABASE_NAME
+              value: unleash
+            - name: DATABASE_USERNAME
+              value: unleash
+            - name: DATABASE_SSL
+              value: "false"
+            - name: LOG_LEVEL
+              value: warn
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ .Deployment.Parameters.PostgresPasswordReference.Name }}"
+                  key: "{{ .Deployment.Parameters.PostgresPasswordReference.Key }}"
+                  optional: false
+            - name: INIT_ADMIN_API_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ .Deployment.Parameters.AdminTokenReference.Name }}"
+                  key: "{{ .Deployment.Parameters.AdminTokenReference.Key }}"
+                  optional: false
+            - name: INIT_BACKEND_API_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ .Deployment.Parameters.ClientTokenReference.Name }}"
+                  key: "{{ .Deployment.Parameters.ClientTokenReference.Key }}"
+                  optional: false
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: admin
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: admin
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: admin
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+        - name: edge
+          image: "{{ .Deployment.Parameters.EdgeImage }}"
+          imagePullPolicy: IfNotPresent
+          args: ["edge"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: edge
+              containerPort: 3063
+          env:
+            - name: UPSTREAM_URL
+              value: http://127.0.0.1:4242
+            - name: FEATURES_REFRESH_INTERVAL_SECONDS
+              value: "15"
+            - name: TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ .Deployment.Parameters.ClientTokenReference.Name }}"
+                  key: "{{ .Deployment.Parameters.ClientTokenReference.Key }}"
+                  optional: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /internal-backstage/ready
+              port: edge
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /internal-backstage/ready
+              port: edge
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /internal-backstage/health
+              port: edge
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: tmp
+          emptyDir: {}

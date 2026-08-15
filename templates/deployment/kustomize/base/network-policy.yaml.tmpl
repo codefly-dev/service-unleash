@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: "{{ .Service.Name.DNSCase }}-control"
+  namespace: "{{ .Namespace }}"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "{{ .Service.Name.DNSCase }}"
+      app.kubernetes.io/component: control
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 3063
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "{{ .Namespace }}"
+      ports:
+        - protocol: TCP
+          port: 4242
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "{{ .Service.Name.DNSCase }}"
+              app.kubernetes.io/component: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: "{{ .Service.Name.DNSCase }}-postgres"
+  namespace: "{{ .Namespace }}"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "{{ .Service.Name.DNSCase }}"
+      app.kubernetes.io/component: postgres
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "{{ .Service.Name.DNSCase }}"
+              app.kubernetes.io/component: control
+      ports:
+        - protocol: TCP
+          port: 5432
