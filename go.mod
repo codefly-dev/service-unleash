@@ -1,11 +1,9 @@
 module github.com/codefly-dev/service-unleash
 
-go 1.25.12
-
-toolchain go1.26.4
+go 1.27.0
 
 require (
-	github.com/codefly-dev/core v0.3.6
+	github.com/codefly-dev/core v0.3.8
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.82.1
 	gopkg.in/yaml.v3 v3.0.1
