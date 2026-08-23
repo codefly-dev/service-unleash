@@ -1,0 +1,7 @@
+# Unleash feature flags
+
+This service runs an Unleash server, a dedicated PostgreSQL database, and Unleash Edge.
+
+- Use the module-visible `admin` endpoint for the UI and admin API.
+- Send client SDK evaluation traffic only to the public `edge` endpoint.
+- Store `POSTGRES_PASSWORD`, `UNLEASH_ADMIN_TOKEN`, and `UNLEASH_CLIENT_TOKEN` in Codefly secret configuration.
